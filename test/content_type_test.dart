@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:webview_flutter_web/src/content_type.dart';
+import 'package:highcharts_flutter_webwebview/src/content_type.dart';
 
 void main() {
   group('ContentType.parse', () {

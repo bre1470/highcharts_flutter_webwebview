@@ -1,8 +1,9 @@
-name: webview_flutter_web
-description: A Flutter plugin that provides a WebView widget on web.
-repository: https://github.com/flutter/packages/tree/main/packages/webview_flutter/webview_flutter_web
-issue_tracker: https://github.com/flutter/flutter/issues?q=is%3Aissue+is%3Aopen+label%3A%22p%3A+webview%22
-version: 0.2.3+4
+version: 0.0.1
+name: highcharts_flutter_webwebview
+description: Optimised Flutter webview for web target with Highcharts.
+homepage: https://www.highcharts.com/integrations/
+issue_tracker: https://github.com/highcharts/highcharts_flutter/issues
+repository: https://github.com/highcharts/highcharts_flutter
 
 environment:
   sdk: ^3.4.0
@@ -13,8 +14,8 @@ flutter:
     implements: webview_flutter
     platforms:
       web:
-        pluginClass: WebWebViewPlatform
-        fileName: webview_flutter_web.dart
+        pluginClass: HighchartsWebWebViewPlatform
+        fileName: highcharts_flutter_webwebview.dart
 
 dependencies:
   flutter:

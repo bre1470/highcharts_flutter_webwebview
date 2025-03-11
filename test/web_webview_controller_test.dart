@@ -10,10 +10,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/annotations.dart';
 import 'package:mockito/mockito.dart';
-import 'package:web/helpers.dart';
 import 'package:web/web.dart' as web;
 import 'package:webview_flutter_platform_interface/webview_flutter_platform_interface.dart';
-import 'package:webview_flutter_web/webview_flutter_web.dart';
+import 'package:highcharts_flutter_webwebview/webview_flutter_web.dart';
 
 import 'web_webview_controller_test.mocks.dart';
 
@@ -39,7 +38,7 @@ void main() {
     group('loadHtmlString', () {
       final WebWebViewController controller =
           WebWebViewController(WebWebViewControllerCreationParams());
-      final HTMLIFrameElement iFrame =
+      final web.HTMLIFrameElement iFrame =
           (controller.params as WebWebViewControllerCreationParams).iFrame;
 
       test('loads html into iframe', () async {

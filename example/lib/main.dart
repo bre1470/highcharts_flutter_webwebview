@@ -8,7 +8,7 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter_platform_interface/webview_flutter_platform_interface.dart';
-import 'package:webview_flutter_web/webview_flutter_web.dart';
+import 'package:highcharts_flutter_webwebview/webview_flutter_web.dart';
 
 void main() {
   WebViewPlatform.instance = WebWebViewPlatform();
