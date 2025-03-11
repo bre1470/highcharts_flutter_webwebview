@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/annotations.dart';
 import 'package:mockito/mockito.dart';
+import 'package:web/helpers.dart';
 import 'package:web/web.dart' as web;
 import 'package:webview_flutter_platform_interface/webview_flutter_platform_interface.dart';
 import 'package:webview_flutter_web/webview_flutter_web.dart';
@@ -36,26 +37,23 @@ void main() {
     });
 
     group('loadHtmlString', () {
-      test('loadHtmlString loads html into iframe', () async {
-        final WebWebViewController controller =
-            WebWebViewController(WebWebViewControllerCreationParams());
+      final WebWebViewController controller =
+          WebWebViewController(WebWebViewControllerCreationParams());
+      final HTMLIFrameElement iFrame =
+          (controller.params as WebWebViewControllerCreationParams).iFrame;
 
-        await controller.loadHtmlString('test html');
-        expect(
-          (controller.params as WebWebViewControllerCreationParams).iFrame.src,
-          'data:text/html;charset=utf-8,${Uri.encodeFull('test html')}',
-        );
+      test('loads html into iframe', () async {
+        await controller.loadHtmlString('test html #');
+        expect(iFrame.src, 'about:blank');
       });
 
-      test('loadHtmlString escapes "#" correctly', () async {
-        final WebWebViewController controller =
-            WebWebViewController(WebWebViewControllerCreationParams());
+      test('CORS', () {
+        expect(iFrame.contentDocument?.body, isNotNull);
+      });
 
-        await controller.loadHtmlString('#');
+      test('HTML', () {
         expect(
-          (controller.params as WebWebViewControllerCreationParams).iFrame.src,
-          contains('%23'),
-        );
+            iFrame.contentDocument?.body?.innerHTML.toString(), 'test html #');
       });
     });
 

@@ -38,12 +38,15 @@ class WebWebViewControllerCreationParams
   final HttpRequestFactory httpRequestFactory;
 
   /// The underlying element used as the WebView.
-  @visibleForTesting
   final web.HTMLIFrameElement iFrame = web.HTMLIFrameElement()
     ..id = 'webView${_nextIFrameId++}'
     ..style.width = '100%'
     ..style.height = '100%'
     ..style.border = 'none';
+
+  web.HTMLScriptElement get iScript =>
+      this.iFrame.contentDocument?.createElement('script')
+          as web.HTMLScriptElement;
 }
 
 /// An implementation of [PlatformWebViewController] using Flutter for Web API.
@@ -60,11 +63,27 @@ class WebWebViewController extends PlatformWebViewController {
 
   @override
   Future<void> loadHtmlString(String html, {String? baseUrl}) async {
-    _webWebViewParams.iFrame.src = Uri.dataFromString(
-      html,
-      mimeType: 'text/html',
-      encoding: utf8,
-    ).toString();
+    /// Avoid CORS
+    _webWebViewParams.iFrame.src='about:blank';
+    if (_webWebViewParams.iFrame.contentDocument == null) {
+      web.document.body?.appendChild(_webWebViewParams.iFrame);
+    }
+
+    /// Inject HTML code into iFrame. This might replace existing code.
+    _webWebViewParams.iFrame.contentDocument?.body?.innerHTML = html as JSAny;
+  }
+
+  @override
+  Future<void> runJavaScript(String javaScript) async {
+    /// Add iScript to iFrame, if not attached.
+    if (_webWebViewParams.iScript.parentElement !=
+        _webWebViewParams.iFrame.contentWindow?.document.body) {
+      _webWebViewParams.iFrame.contentWindow?.document.body
+          ?.appendChild(_webWebViewParams.iScript);
+    }
+
+    /// Inject JavaScript code into iScript. This might replace existing code.
+    _webWebViewParams.iScript.innerHTML = javaScript as JSAny;
   }
 
   @override
