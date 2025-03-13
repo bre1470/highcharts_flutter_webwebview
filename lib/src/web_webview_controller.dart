@@ -23,7 +23,8 @@ class WebWebViewControllerCreationParams
     @visibleForTesting this.httpRequestFactory = const HttpRequestFactory(),
   }) : super();
 
-  /// Creates a [WebWebViewControllerCreationParams] instance based on [PlatformWebViewControllerCreationParams].
+  /// Creates a [WebWebViewControllerCreationParams] instance based on
+  /// [PlatformWebViewControllerCreationParams].
   WebWebViewControllerCreationParams.fromPlatformWebViewControllerCreationParams(
     // Recommended placeholder to prevent being broken by platform interface.
     // ignore: avoid_unused_constructor_parameters
@@ -43,10 +44,6 @@ class WebWebViewControllerCreationParams
     ..style.width = '100%'
     ..style.height = '100%'
     ..style.border = 'none';
-
-  web.HTMLScriptElement get iScript =>
-      this.iFrame.contentDocument?.createElement('script')
-          as web.HTMLScriptElement;
 }
 
 /// An implementation of [PlatformWebViewController] using Flutter for Web API.
@@ -61,29 +58,46 @@ class WebWebViewController extends PlatformWebViewController {
   WebWebViewControllerCreationParams get _webWebViewParams =>
       params as WebWebViewControllerCreationParams;
 
+  String? _htmlString;
+
+  web.HTMLScriptElement? _iScript;
+
+  String? _javaScript;
+
   @override
   Future<void> loadHtmlString(String html, {String? baseUrl}) async {
-    /// Avoid CORS
-    _webWebViewParams.iFrame.src='about:blank';
-    if (_webWebViewParams.iFrame.contentDocument == null) {
-      web.document.body?.appendChild(_webWebViewParams.iFrame);
-    }
+    final iFrame = _webWebViewParams.iFrame;
+    final iDocument = iFrame.contentDocument;
 
-    /// Inject HTML code into iFrame. This might replace existing code.
-    _webWebViewParams.iFrame.contentDocument?.body?.innerHTML = html as JSAny;
+    if (iDocument == null) {
+      // WebWebViewWidget will call me later.
+      _htmlString = html;
+    } else {
+      // Reset iFrame and inject HTML.
+      iFrame.src = 'about:blank';
+      iDocument.write(html.toJS);
+    }
   }
 
   @override
   Future<void> runJavaScript(String javaScript) async {
-    /// Add iScript to iFrame, if not attached.
-    if (_webWebViewParams.iScript.parentElement !=
-        _webWebViewParams.iFrame.contentWindow?.document.body) {
-      _webWebViewParams.iFrame.contentWindow?.document.body
-          ?.appendChild(_webWebViewParams.iScript);
-    }
+    final iDocument = _webWebViewParams.iFrame.contentDocument;
+    final iBody = iDocument?.body;
 
-    /// Inject JavaScript code into iScript. This might replace existing code.
-    _webWebViewParams.iScript.innerHTML = javaScript as JSAny;
+    if (iDocument == null || iBody == null) {
+      // WebWebViewWidget will call me later.
+      _javaScript = javaScript;
+    } else {
+      /// Reset iScript.
+      if (_iScript != null) {
+        iBody.removeChild(_iScript!);
+      }
+      _iScript = iDocument.createElement('script') as web.HTMLScriptElement;
+      iBody.appendChild(_iScript!);
+
+      /// Inject JavaScript.
+      _iScript!.innerHTML = javaScript.toJS;
+    }
   }
 
   @override
@@ -129,22 +143,47 @@ class WebWebViewWidget extends PlatformWebViewWidget {
   /// Constructs a [WebWebViewWidget].
   WebWebViewWidget(PlatformWebViewWidgetCreationParams params)
       : super.implementation(params) {
-    final WebWebViewController controller =
-        params.controller as WebWebViewController;
     ui_web.platformViewRegistry.registerViewFactory(
-      controller._webWebViewParams.iFrame.id,
-      (int viewId) => controller._webWebViewParams.iFrame,
+      _controller._webWebViewParams.iFrame.id,
+      (int viewId) => _controller._webWebViewParams.iFrame,
     );
   }
+
+  WebWebViewController get _controller =>
+      params.controller as WebWebViewController;
 
   @override
   Widget build(BuildContext context) {
     return HtmlElementView(
       key: params.key,
-      viewType: (params.controller as WebWebViewController)
-          ._webWebViewParams
-          .iFrame
-          .id,
+      onPlatformViewCreated: (id) {
+        final iFrame = _controller._webWebViewParams.iFrame;
+        web.EventListener? listener;
+
+        listener = (() {
+          final htmlString = _controller._htmlString;
+          final javaScript = _controller._javaScript;
+
+          _controller._htmlString = null;
+          _controller._javaScript = null;
+
+          if (htmlString != null) {
+            /// Restore HTML
+            _controller.loadHtmlString(htmlString);
+          }
+          if (javaScript != null) {
+            /// Restore JavaScript
+            _controller.runJavaScript(javaScript);
+          }
+
+          iFrame.removeEventListener('load', listener);
+        }).toJS;
+
+        iFrame.addEventListener('load', listener);
+
+        _controller._webWebViewParams.iFrame.src = 'about:blank';
+      },
+      viewType: _controller._webWebViewParams.iFrame.id,
     );
   }
 }

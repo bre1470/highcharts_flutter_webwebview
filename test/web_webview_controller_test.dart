@@ -43,16 +43,8 @@ void main() {
 
       test('loads html into iframe', () async {
         await controller.loadHtmlString('test html #');
-        expect(iFrame.src, 'about:blank');
-      });
-
-      test('CORS', () {
-        expect(iFrame.contentDocument?.body, isNotNull);
-      });
-
-      test('HTML', () {
-        expect(
-            iFrame.contentDocument?.body?.innerHTML.toString(), 'test html #');
+        expect(iFrame.src, '');
+        expect(iFrame.contentDocument, null);
       });
     });
 

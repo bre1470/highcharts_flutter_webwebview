@@ -1,6 +1,6 @@
-version: 0.0.1
+version: 0.3.0
 name: highcharts_flutter_webwebview
-description: Optimised Flutter webview for web target with Highcharts.
+description: Extended webview_flutter_web for Highcharts.
 homepage: https://www.highcharts.com/integrations/
 issue_tracker: https://github.com/highcharts/highcharts_flutter/issues
 repository: https://github.com/highcharts/highcharts_flutter
@@ -14,8 +14,8 @@ flutter:
     implements: webview_flutter
     platforms:
       web:
-        pluginClass: HighchartsWebWebViewPlatform
-        fileName: highcharts_flutter_webwebview.dart
+        pluginClass: WebWebViewPlatform
+        fileName: webview_flutter_web.dart
 
 dependencies:
   flutter:
