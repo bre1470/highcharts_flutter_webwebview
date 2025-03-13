@@ -1,3 +1,7 @@
+## 0.3.0
+
+* Adds `runJavaScript`.
+
 ## 0.2.3+4
 
 * Updates README to remove contributor-focused documentation.

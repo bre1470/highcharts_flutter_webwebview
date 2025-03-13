@@ -1,6 +1,10 @@
 highcharts\_flutter\_webwebview
 ===============================
-Optimised Flutter webview for web target with Highcharts.
+Extended webview_flutter_web for Highcharts.
+
+Additions:
+
+- `runJavaScript`
 
 ## webview\_flutter\_web
 
