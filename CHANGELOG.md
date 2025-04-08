@@ -1,3 +1,7 @@
+## 0.3.1
+
+* Uses data URL in `runJavaScript` to work around strict CSP.
+
 ## 0.3.0
 
 * Adds `runJavaScript`.

@@ -1,4 +1,4 @@
-version: 0.3.0
+version: 0.3.1
 name: highcharts_flutter_webwebview
 description: Extended webview_flutter_web for Highcharts.
 homepage: https://www.highcharts.com/integrations/

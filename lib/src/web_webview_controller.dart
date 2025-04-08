@@ -95,8 +95,12 @@ class WebWebViewController extends PlatformWebViewController {
       _iScript = iDocument.createElement('script') as web.HTMLScriptElement;
       iBody.appendChild(_iScript!);
 
-      /// Inject JavaScript.
-      _iScript!.innerHTML = javaScript.toJS;
+      /// Inject JavaScript. Data URL to work around strict CSP.
+      _iScript!.src = Uri.dataFromString(
+        javaScript,
+        mimeType: 'text/javascript',
+        encoding: utf8,
+      ).toString();
     }
   }
 
