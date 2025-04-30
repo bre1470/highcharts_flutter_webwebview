@@ -13,6 +13,14 @@ import 'package:webview_flutter_platform_interface/webview_flutter_platform_inte
 import 'content_type.dart';
 import 'http_request_factory.dart';
 
+@immutable
+class WebWebViewMessage extends JavaScriptMessage {
+  WebWebViewMessage({required String message, this.extraData = null})
+      : super(message: message);
+
+  final dynamic extraData;
+}
+
 /// An implementation of [PlatformWebViewControllerCreationParams] using Flutter
 /// for Web API.
 @immutable
@@ -44,6 +52,12 @@ class WebWebViewControllerCreationParams
     ..style.width = '100%'
     ..style.height = '100%'
     ..style.border = 'none';
+
+  void dispose() {
+    if (iFrame.parentElement != null) {
+      iFrame.remove();
+    }
+  }
 }
 
 /// An implementation of [PlatformWebViewController] using Flutter for Web API.
@@ -55,14 +69,65 @@ class WebWebViewController extends PlatformWebViewController {
             : WebWebViewControllerCreationParams
                 .fromPlatformWebViewControllerCreationParams(params));
 
-  WebWebViewControllerCreationParams get _webWebViewParams =>
-      params as WebWebViewControllerCreationParams;
-
   String? _htmlString;
 
   web.HTMLScriptElement? _iScript;
 
   String? _javaScript;
+
+  final Map<String, web.MessageChannel> _messageChannels = {};
+
+  bool get mounted => _webWebViewParams.iFrame.parentElement != null;
+
+  WebWebViewControllerCreationParams get _webWebViewParams =>
+      params as WebWebViewControllerCreationParams;
+
+  @override
+  Future<void> addJavaScriptChannel(
+      JavaScriptChannelParams javaScriptChannelParams) async {
+    final String channelName = javaScriptChannelParams.name;
+
+    if (_messageChannels.containsKey(channelName)) {
+      throw new ArgumentError(
+        'A JavaScriptChannel with name `$channelName` already exists.',
+      );
+    }
+
+    final channel = new web.MessageChannel();
+
+    channel.port1.onmessage = (web.MessageEvent e) {
+      javaScriptChannelParams.onMessageReceived(
+          new WebWebViewMessage(message: channelName, extraData: e.data));
+    }.toJS;
+    _connectMessageChannel(channel);
+    _messageChannels[channelName] = channel;
+  }
+
+  void _connectMessageChannel(web.MessageChannel channel) {
+    if (_webWebViewParams.iFrame.contentWindow != null) {
+      _webWebViewParams.iFrame.contentWindow
+          ?.postMessage('init'.toJS, '*'.toJS, [channel.port2].toJS);
+    }
+  }
+
+  void dispose() {
+    _messageChannels.entries.forEach((entry) {
+      entry.value.port1.close();
+      entry.value.port2.close();
+    });
+    if (_iScript?.parentElement != null) {
+      _iScript!.remove();
+    }
+    _webWebViewParams.dispose();
+  }
+
+  @override
+  Future<String> getTitle() async {
+    final iFrame = _webWebViewParams.iFrame;
+    final iDocument = iFrame.contentDocument;
+
+    return iDocument?.title ?? '';
+  }
 
   @override
   Future<void> loadHtmlString(String html, {String? baseUrl}) async {
@@ -76,6 +141,15 @@ class WebWebViewController extends PlatformWebViewController {
       // Reset iFrame and inject HTML.
       iFrame.src = 'about:blank';
       iDocument.write(html.toJS);
+    }
+  }
+
+  @override
+  Future<void> removeJavaScriptChannel(String javaScriptChannelName) async {
+    if (_messageChannels.containsKey(javaScriptChannelName)) {
+      final channel = _messageChannels.remove(javaScriptChannelName)!;
+      channel.port1.close();
+      channel.port2.close();
     }
   }
 
@@ -161,10 +235,13 @@ class WebWebViewWidget extends PlatformWebViewWidget {
     return HtmlElementView(
       key: params.key,
       onPlatformViewCreated: (id) {
-        final iFrame = _controller._webWebViewParams.iFrame;
+        web.HTMLIFrameElement? iFrame = _controller._webWebViewParams.iFrame;
         web.EventListener? listener;
 
         listener = (() {
+          iFrame?.removeEventListener('load', listener);
+          iFrame = null;
+
           final htmlString = _controller._htmlString;
           final javaScript = _controller._javaScript;
 
@@ -175,17 +252,18 @@ class WebWebViewWidget extends PlatformWebViewWidget {
             /// Restore HTML
             _controller.loadHtmlString(htmlString);
           }
+
           if (javaScript != null) {
             /// Restore JavaScript
             _controller.runJavaScript(javaScript);
           }
 
-          iFrame.removeEventListener('load', listener);
+          _controller._messageChannels.values
+              .forEach(_controller._connectMessageChannel);
         }).toJS;
 
-        iFrame.addEventListener('load', listener);
-
-        _controller._webWebViewParams.iFrame.src = 'about:blank';
+        iFrame?.addEventListener('load', listener);
+        iFrame?.src = 'about:blank';
       },
       viewType: _controller._webWebViewParams.iFrame.id,
     );

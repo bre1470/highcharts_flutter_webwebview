@@ -4,7 +4,24 @@ Extended webview_flutter_web for Highcharts.
 
 Additions:
 
+- `addJavaScriptChannel`
+- `dispose`
+- `removeJavaScriptChannel`
 - `runJavaScript`
+
+## Development
+
+- Use `flutter build web` to build web target.
+- Use `flutter test --platform=chrome` to run unit tests.
+- Use the following to run integration tests:
+  ```
+  (cd example && flutter drive -d chrome --driver=test_driver/integration_test.dart --target=integration_test/webview_flutter_test.dart)
+  ```
+  This requires to run `highcharts_flutter_testserver`.
+
+---
+
+Following is the original README:
 
 ## webview\_flutter\_web
 
@@ -17,12 +34,6 @@ The following functionality is currently available:
 - `loadHtmlString` (Without `baseUrl`)
 
 Nothing else is currently supported.
-
-## Development
-
-* Use `flutter build web` to build web target.
-
-* Use `flutter test --platform chrome` to run unit tests.
 
 ## Usage
 
