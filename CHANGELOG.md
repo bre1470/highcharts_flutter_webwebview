@@ -1,3 +1,9 @@
+## 0.3.2
+
+* Adds `addJavaScriptChannel` and `removeJavaScriptChannel`.
+* Adds `dispose` and `mounted`.
+* Adds `getTitle`.
+
 ## 0.3.1
 
 * Uses data URL in `runJavaScript` to work around strict CSP.
