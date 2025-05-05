@@ -6,6 +6,8 @@ Additions:
 
 - `addJavaScriptChannel`
 - `dispose`
+- `getTitle`
+- `mounted`
 - `removeJavaScriptChannel`
 - `runJavaScript`
 
