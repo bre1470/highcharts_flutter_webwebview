@@ -21,6 +21,17 @@ class WebWebViewMessage extends JavaScriptMessage {
   final dynamic extraData;
 }
 
+@immutable
+class WebWebViewMessageChannel {
+  WebWebViewMessageChannel({
+    required this.name,
+    required this.webChannel,
+  });
+
+  final String name;
+  final web.MessageChannel webChannel;
+}
+
 /// An implementation of [PlatformWebViewControllerCreationParams] using Flutter
 /// for Web API.
 @immutable
@@ -64,10 +75,14 @@ class WebWebViewControllerCreationParams
 class WebWebViewController extends PlatformWebViewController {
   /// Constructs a [WebWebViewController].
   WebWebViewController(PlatformWebViewControllerCreationParams params)
-      : super.implementation(params is WebWebViewControllerCreationParams
-            ? params
-            : WebWebViewControllerCreationParams
-                .fromPlatformWebViewControllerCreationParams(params));
+      : super.implementation(
+          params is WebWebViewControllerCreationParams
+              ? params
+              : WebWebViewControllerCreationParams
+                  .fromPlatformWebViewControllerCreationParams(
+                  params,
+                ),
+        );
 
   String? _htmlString;
 
@@ -75,7 +90,7 @@ class WebWebViewController extends PlatformWebViewController {
 
   String? _javaScript;
 
-  final Map<String, web.MessageChannel> _messageChannels = {};
+  final Map<String, WebWebViewMessageChannel> _messageChannels = {};
 
   bool get mounted => _webWebViewParams.iFrame.parentElement != null;
 
@@ -84,7 +99,8 @@ class WebWebViewController extends PlatformWebViewController {
 
   @override
   Future<void> addJavaScriptChannel(
-      JavaScriptChannelParams javaScriptChannelParams) async {
+    JavaScriptChannelParams javaScriptChannelParams,
+  ) async {
     final String channelName = javaScriptChannelParams.name;
 
     if (_messageChannels.containsKey(channelName)) {
@@ -93,27 +109,42 @@ class WebWebViewController extends PlatformWebViewController {
       );
     }
 
-    final channel = new web.MessageChannel();
+    final channel = WebWebViewMessageChannel(
+      name: channelName,
+      webChannel: web.MessageChannel(),
+    );
 
-    channel.port1.onmessage = (web.MessageEvent e) {
+    channel.webChannel.port1.onmessage = (web.MessageEvent e) {
       javaScriptChannelParams.onMessageReceived(
-          new WebWebViewMessage(message: channelName, extraData: e.data));
+        new WebWebViewMessage(message: channel.name, extraData: e.data),
+      );
     }.toJS;
+
     _connectMessageChannel(channel);
+
     _messageChannels[channelName] = channel;
   }
 
-  void _connectMessageChannel(web.MessageChannel channel) {
+  void _connectMessageChannel(WebWebViewMessageChannel channel) {
     if (_webWebViewParams.iFrame.contentWindow != null) {
-      _webWebViewParams.iFrame.contentWindow
-          ?.postMessage('init'.toJS, '*'.toJS, [channel.port2].toJS);
+      _webWebViewParams.iFrame.contentWindow?.postMessage(
+        ['flutter_webwebview._connect'.toJS, channel.name.toJS].toJS,
+        '*'.toJS,
+        [channel.webChannel.port2].toJS,
+      );
     }
   }
 
+  void _disconnectMessageChannel(WebWebViewMessageChannel channel) {
+    channel.webChannel.port1.postMessage(
+        ['flutter_webwebview._disconnect'.toJS, channel.name.toJS].toJS);
+    channel.webChannel.port1.close();
+  }
+
   void dispose() {
-    _messageChannels.entries.forEach((entry) {
-      entry.value.port1.close();
-      entry.value.port2.close();
+    _messageChannels.values.forEach((channel) {
+      channel.webChannel.port1.close();
+      channel.webChannel.port2.close();
     });
     if (_iScript?.parentElement != null) {
       _iScript!.remove();
@@ -127,6 +158,25 @@ class WebWebViewController extends PlatformWebViewController {
     final iDocument = iFrame.contentDocument;
 
     return iDocument?.title ?? '';
+  }
+
+  void _injectJavaScript(String javaScript) {
+    final iDocument = _webWebViewParams.iFrame.contentDocument;
+    final iBody = iDocument!.body!;
+
+    /// Reset iScript.
+    if (_iScript != null) {
+      iBody.removeChild(_iScript!);
+    }
+    _iScript = iDocument.createElement('script') as web.HTMLScriptElement;
+    iBody.appendChild(_iScript!);
+
+    /// Inject JavaScript. Data URL to work around strict CSP.
+    _iScript!.src = Uri.dataFromString(
+      javaScript,
+      mimeType: 'text/javascript',
+      encoding: utf8,
+    ).toString();
   }
 
   @override
@@ -145,11 +195,27 @@ class WebWebViewController extends PlatformWebViewController {
   }
 
   @override
-  Future<void> removeJavaScriptChannel(String javaScriptChannelName) async {
-    if (_messageChannels.containsKey(javaScriptChannelName)) {
-      final channel = _messageChannels.remove(javaScriptChannelName)!;
-      channel.port1.close();
-      channel.port2.close();
+  Future<void> loadRequest(LoadRequestParams params) async {
+    if (!params.uri.hasScheme) {
+      throw ArgumentError(
+        'LoadRequestParams#uri is required to have a scheme.',
+      );
+    }
+
+    if (params.headers.isEmpty &&
+        (params.body == null || params.body!.isEmpty) &&
+        params.method == LoadRequestMethod.get) {
+      _webWebViewParams.iFrame.src = params.uri.toString();
+    } else {
+      await _updateIFrameFromXhr(params);
+    }
+  }
+
+  @override
+  Future<void> removeJavaScriptChannel(String name) async {
+    if (_messageChannels.containsKey(name)) {
+      final channel = _messageChannels.remove(name)!;
+      _disconnectMessageChannel(channel);
     }
   }
 
@@ -162,35 +228,7 @@ class WebWebViewController extends PlatformWebViewController {
       // WebWebViewWidget will call me later.
       _javaScript = javaScript;
     } else {
-      /// Reset iScript.
-      if (_iScript != null) {
-        iBody.removeChild(_iScript!);
-      }
-      _iScript = iDocument.createElement('script') as web.HTMLScriptElement;
-      iBody.appendChild(_iScript!);
-
-      /// Inject JavaScript. Data URL to work around strict CSP.
-      _iScript!.src = Uri.dataFromString(
-        javaScript,
-        mimeType: 'text/javascript',
-        encoding: utf8,
-      ).toString();
-    }
-  }
-
-  @override
-  Future<void> loadRequest(LoadRequestParams params) async {
-    if (!params.uri.hasScheme) {
-      throw ArgumentError(
-          'LoadRequestParams#uri is required to have a scheme.');
-    }
-
-    if (params.headers.isEmpty &&
-        (params.body == null || params.body!.isEmpty) &&
-        params.method == LoadRequestMethod.get) {
-      _webWebViewParams.iFrame.src = params.uri.toString();
-    } else {
-      await _updateIFrameFromXhr(params);
+      _injectJavaScript(javaScript);
     }
   }
 
@@ -239,6 +277,11 @@ class WebWebViewWidget extends PlatformWebViewWidget {
         web.EventListener? listener;
 
         listener = (() {
+          if (iFrame?.contentDocument?.readyState != null &&
+              iFrame?.contentDocument?.readyState != 'complete') {
+            return;
+          }
+
           iFrame?.removeEventListener('load', listener);
           iFrame = null;
 
@@ -253,13 +296,43 @@ class WebWebViewWidget extends PlatformWebViewWidget {
             _controller.loadHtmlString(htmlString);
           }
 
+          _controller._injectJavaScript('''try {
+            addEventListener('message', function (e) {
+              if (
+                e.data instanceof Array &&
+                e.data[0] === 'flutter_webwebview._connect'
+              ) {
+                const name = e.data[1];
+                const port = e.ports[0];
+
+                window[name] = {
+                    postMessage: (message) => port.postMessage(message),
+                };
+
+                port.onMessage = (message) => {
+                  if (
+                    e.data instanceof Array &&
+                    e.data[0] === 'flutter_webwebview._disconnect'
+                  ) {
+                    try {
+                      delete window[name];
+                    } finally {
+                      port.close();
+                    }
+                  }
+                };
+              }
+            });
+          } catch {}''');
+
           if (javaScript != null) {
             /// Restore JavaScript
             _controller.runJavaScript(javaScript);
           }
 
-          _controller._messageChannels.values
-              .forEach(_controller._connectMessageChannel);
+          _controller._messageChannels.values.forEach(
+            _controller._connectMessageChannel,
+          );
         }).toJS;
 
         iFrame?.addEventListener('load', listener);
