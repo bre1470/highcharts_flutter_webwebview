@@ -3,6 +3,8 @@
 // found in the LICENSE file.
 
 import 'dart:async';
+import 'dart:js_interop' as js;
+import 'dart:js_interop_unsafe';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -77,50 +79,79 @@ Future<void> main() async {
         await tester.pumpWidget(webView);
         await tester.pumpAndSettle(Duration(seconds: 1));
 
-        Completer<bool> received = Completer<bool>();
+        Completer<bool> completer = Completer<bool>();
 
         late final JavaScriptChannelParams channel;
 
         channel = JavaScriptChannelParams(
-            name: 'test',
+            name: 'webview_flutter_test',
             onMessageReceived: (JavaScriptMessage message) {
-              if (!received.isCompleted) {
-                received.complete(message is WebWebViewMessage);
+              if (!completer.isCompleted) {
+                // Trigger completer
+                completer.complete(message.message == 'ping');
               }
             });
 
         expect(channel, isA<JavaScriptChannelParams>());
 
-        await controller.runJavaScript('''(function () {
-          addEventListener('message', (e) => {
-            const port = e.ports[0];
-
-            port.postMessage({ 'ping': 'pong' });
-            port.onmessage = () => port.postMessage({ 'ping': 'pong' });
-          });
-        })();''');
-
+        // Test addJavaScriptChannel
         await tester.runAsync(() async {
-          received = Completer();
-          await controller.addJavaScriptChannel(channel);
-          expect(await received.future, true,
-              reason: 'addJavaScriptChannel should run successfully.');
-        });
+          completer = Completer();
 
-        await tester.runAsync(() async {
-          received = Completer();
-          final timer = Timer(Duration(seconds: 3), () {
-            if (!received.isCompleted) {
-              received.complete(false);
+          await controller.runJavaScript('''(function () {
+            addEventListener('message', (e) => {
+              e.ports[0].postMessage(
+                typeof window.webview_flutter_test === 'object' ?
+                  'ping' :
+                  'pong'
+              );
+            });
+          })();''');
+
+          Future.delayed(Duration(seconds: 3)).then((_) {
+            if (!completer.isCompleted) {
+              completer.complete(false);
             }
           });
 
-          await controller.removeJavaScriptChannel(channel.name);
+          await controller.addJavaScriptChannel(channel);
 
-          expect(timer.isActive && !received.isCompleted, true,
+          expect(await completer.future, true,
+              reason: 'addJavaScriptChannel should trigger before timeout.');
+
+          expect(
+              (controller.params as WebWebViewControllerCreationParams)
+                  .iFrame
+                  .contentWindow
+                  ?.hasProperty('webview_flutter_test'.toJS),
+              true,
+              reason: 'addJavaScriptChannel should add channel object.');
+        });
+
+        // Test removeJavaScriptChannel
+        await tester.runAsync(() async {
+          completer = Completer();
+
+          Future.delayed(Duration(seconds: 3)).then((_) {
+            if (!completer.isCompleted) {
+              completer.complete(false);
+            }
+          });
+
+          await controller
+              .removeJavaScriptChannel(channel.name)
+              .then((_) => completer.complete(true));
+
+          expect(await completer.future, true,
               reason: 'removeJavaScriptChannel should run successfully.');
 
-          timer.cancel();
+          expect(
+              (controller.params as WebWebViewControllerCreationParams)
+                  .iFrame
+                  .contentWindow
+                  ?.hasProperty('webview_flutter_test'.toJS),
+              false,
+              reason: 'removeJavaScriptChannel should remove channel object.');
         });
       } finally {
         await tester.pumpWidget(Container());

@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:js_interop';
 import 'dart:ui_web' as ui_web;
@@ -12,14 +13,6 @@ import 'package:webview_flutter_platform_interface/webview_flutter_platform_inte
 
 import 'content_type.dart';
 import 'http_request_factory.dart';
-
-@immutable
-class WebWebViewMessage extends JavaScriptMessage {
-  WebWebViewMessage({required String message, this.extraData = null})
-      : super(message: message);
-
-  final dynamic extraData;
-}
 
 @immutable
 class WebWebViewMessageChannel {
@@ -113,14 +106,23 @@ class WebWebViewController extends PlatformWebViewController {
       name: channelName,
       webChannel: web.MessageChannel(),
     );
+    final completer = Completer<bool>();
 
     channel.webChannel.port1.onmessage = (web.MessageEvent e) {
-      javaScriptChannelParams.onMessageReceived(
-        new WebWebViewMessage(message: channel.name, extraData: e.data),
-      );
+      if (e.data.toString() == 'flutter_webwebview._connected') {
+        completer.complete(true);
+      }
     }.toJS;
 
     _connectMessageChannel(channel);
+
+    await completer.future;
+
+    channel.webChannel.port1.onmessage = (web.MessageEvent e) {
+      javaScriptChannelParams.onMessageReceived(
+        new JavaScriptMessage(message: e.data.toString()),
+      );
+    }.toJS;
 
     _messageChannels[channelName] = channel;
   }
@@ -135,9 +137,21 @@ class WebWebViewController extends PlatformWebViewController {
     }
   }
 
-  void _disconnectMessageChannel(WebWebViewMessageChannel channel) {
+  Future<void> _disconnectMessageChannel(
+      WebWebViewMessageChannel channel) async {
+    final completer = Completer<bool>();
+
     channel.webChannel.port1.postMessage(
         ['flutter_webwebview._disconnect'.toJS, channel.name.toJS].toJS);
+
+    channel.webChannel.port1.onmessage = (web.MessageEvent e) {
+      if (e.data.toString() == 'flutter_webwebview._disconnected') {
+        completer.complete(true);
+      }
+    }.toJS;
+
+    await completer.future;
+
     channel.webChannel.port1.close();
   }
 
@@ -215,7 +229,7 @@ class WebWebViewController extends PlatformWebViewController {
   Future<void> removeJavaScriptChannel(String name) async {
     if (_messageChannels.containsKey(name)) {
       final channel = _messageChannels.remove(name)!;
-      _disconnectMessageChannel(channel);
+      await _disconnectMessageChannel(channel);
     }
   }
 
@@ -306,21 +320,26 @@ class WebWebViewWidget extends PlatformWebViewWidget {
                 const port = e.ports[0];
 
                 window[name] = {
-                    postMessage: (message) => port.postMessage(message),
+                  postMessage: (message) => {
+                    port.postMessage(message);
+                  },
                 };
 
-                port.onMessage = (message) => {
+                port.onmessage = (e) => {
                   if (
                     e.data instanceof Array &&
                     e.data[0] === 'flutter_webwebview._disconnect'
                   ) {
                     try {
                       delete window[name];
+                      port.postMessage('flutter_webwebview._disconnected');
                     } finally {
                       port.close();
                     }
                   }
                 };
+
+                port.postMessage('flutter_webwebview._connected');
               }
             });
           } catch {}''');
