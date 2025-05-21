@@ -1,3 +1,7 @@
+## 0.3.3
+
+* Fixes `addJavaScriptChannel` and `removeJavaScriptChannel`.
+
 ## 0.3.2
 
 * Adds `addJavaScriptChannel` and `removeJavaScriptChannel`.
