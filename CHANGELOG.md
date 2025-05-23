@@ -1,3 +1,7 @@
+## 0.3.4
+
+* Adds `setPlatformNavigationDelegate` with `onPageFinished` only.
+
 ## 0.3.3
 
 * Fixes `addJavaScriptChannel` and `removeJavaScriptChannel`.

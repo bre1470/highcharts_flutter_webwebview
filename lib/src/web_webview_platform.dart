@@ -10,6 +10,13 @@ import 'web_webview_controller.dart';
 /// An implementation of [WebViewPlatform] using Flutter for Web API.
 class WebWebViewPlatform extends WebViewPlatform {
   @override
+  PlatformNavigationDelegate createPlatformNavigationDelegate(
+    PlatformNavigationDelegateCreationParams params,
+  ) {
+    return WebNavigationDelegate(params);
+  }
+
+  @override
   PlatformWebViewController createPlatformWebViewController(
     PlatformWebViewControllerCreationParams params,
   ) {
