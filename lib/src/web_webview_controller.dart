@@ -232,8 +232,12 @@ class WebWebViewController extends PlatformWebViewController {
       channel.webChannel.port1.close();
       channel.webChannel.port2.close();
     });
+    _messageChannels.clear();
     if (_iScript?.parentElement != null) {
       _iScript!.remove();
+    }
+    if (_iScript != null) {
+      _iScript = null;
     }
     _webWebViewParams.dispose();
   }

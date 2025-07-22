@@ -1,3 +1,7 @@
+## 0.3.6-rc
+
+* Improves `dispose`.
+
 ## 0.3.5
 
 * Fixes reference errors during reload lifecycle.
