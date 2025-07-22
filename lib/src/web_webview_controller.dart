@@ -52,10 +52,12 @@ const _kJavaScriptInjection = '''try {
 class WebWebViewMessageChannel {
   WebWebViewMessageChannel({
     required this.name,
+    required this.params,
     required this.webChannel,
   });
 
   final String name;
+  final JavaScriptChannelParams params;
   final web.MessageChannel webChannel;
 }
 
@@ -168,6 +170,7 @@ class WebWebViewController extends PlatformWebViewController {
 
     final channel = _messageChannels[channelName] = WebWebViewMessageChannel(
       name: channelName,
+      params: javaScriptChannelParams,
       webChannel: web.MessageChannel(),
     );
     final completer = Completer<bool>();
@@ -249,7 +252,7 @@ class WebWebViewController extends PlatformWebViewController {
     final iBody = iDocument!.body!;
 
     /// Reset iScript.
-    if (_iScript != null) {
+    if (_iScript != null && _iScript!.ownerDocument == iBody.ownerDocument) {
       iBody.removeChild(_iScript!);
     }
     _iScript = iDocument.createElement('script') as web.HTMLScriptElement;
@@ -360,6 +363,8 @@ class WebWebViewWidget extends PlatformWebViewWidget {
   WebWebViewController get _controller =>
       params.controller as WebWebViewController;
 
+  bool _initialized = false;
+
   @override
   Widget build(BuildContext context) {
     return HtmlElementView(
@@ -367,7 +372,7 @@ class WebWebViewWidget extends PlatformWebViewWidget {
       onPlatformViewCreated: (id) {
         final web.HTMLIFrameElement iFrame =
             _controller._webWebViewParams.iFrame;
-        web.EventListener? listener;
+        late final web.EventListener? listener;
 
         onload() async {
           final htmlString = _controller._htmlString;
@@ -390,13 +395,21 @@ class WebWebViewWidget extends PlatformWebViewWidget {
             }
           }
 
-          _controller._messageChannels.values.forEach(
-            _controller._connectMessageChannel,
-          );
+          if (_initialized) {
+            _controller._messageChannels.values.map(
+              (channel) => _controller.addJavaScriptChannel(channel.params)
+            );
+          } else {
+            _controller._messageChannels.values.forEach(
+              _controller._connectMessageChannel,
+            );
+          }
 
           if (_controller._navigationDelegate != null) {
             _controller._navigationDelegate!._onPageFinished!(iFrame.src);
           }
+
+          _initialized = true;
         }
 
         listener = () {

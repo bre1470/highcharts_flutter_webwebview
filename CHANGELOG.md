@@ -1,6 +1,10 @@
+## 0.3.5
+
+* Fixes reference errors during reload lifecycle.
+
 ## 0.3.4
 
-* Adds `setPlatformNavigationDelegate` with `onPageFinished` only.
+* Adds `setPlatformNavigationDelegate` with `onPageFinished`.
 
 ## 0.3.3
 
